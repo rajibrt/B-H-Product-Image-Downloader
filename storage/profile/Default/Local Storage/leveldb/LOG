@@ -1,6 +1,0 @@
-2026/01/08-15:04:21.291 1e7d76e Reusing MANIFEST /Users/Kayum_1/Projects/bh-image-downloader/storage/profile/Default/Local Storage/leveldb/MANIFEST-000001
-2026/01/08-15:04:21.294 1e7d76e Recovering log #13
-2026/01/08-15:04:21.298 1e7d76e Reusing old log /Users/Kayum_1/Projects/bh-image-downloader/storage/profile/Default/Local Storage/leveldb/000013.log 
-2026/01/08-15:05:14.848 1e7d771 Level-0 table #17: started
-2026/01/08-15:05:14.854 1e7d771 Level-0 table #17: 53288 bytes OK
-2026/01/08-15:05:14.856 1e7d771 Delete type=0 #13
