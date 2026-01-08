@@ -1,0 +1,14 @@
+2026/01/08-15:06:35.286 1e7d647 Reusing MANIFEST /Users/Kayum_1/Projects/bh-image-downloader/storage/profile/Default/IndexedDB/https_www.bhphotovideo.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/01/08-15:06:35.286 1e7d647 Recovering log #244
+2026/01/08-15:06:35.286 1e7d647 Reusing old log /Users/Kayum_1/Projects/bh-image-downloader/storage/profile/Default/IndexedDB/https_www.bhphotovideo.com_0.indexeddb.leveldb/000244.log 
+2026/01/08-15:06:35.287 1e7d647 Delete type=2 #242
+2026/01/08-15:06:38.353 1e7d647 Level-0 table #249: started
+2026/01/08-15:06:38.354 1e7d647 Level-0 table #249: 7130 bytes OK
+2026/01/08-15:06:38.363 1e7d647 Delete type=0 #244
+2026/01/08-15:06:38.363 1e7d647 Manual compaction at level-0 from '\x00F\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00G\x00\x00\x00' @ 0 : 0; will stop at '\x00F\x00\x00\x05' @ 16843 : 1
+2026/01/08-15:06:38.363 1e7d647 Compacting 1@0 + 1@1 files
+2026/01/08-15:06:38.372 1e7d647 Generated table #250@0: 319 keys, 6731 bytes
+2026/01/08-15:06:38.373 1e7d647 Compacted 1@0 + 1@1 files => 6731 bytes
+2026/01/08-15:06:38.378 1e7d647 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/01/08-15:06:38.378 1e7d647 Delete type=2 #249
+2026/01/08-15:06:38.379 1e7d647 Manual compaction at level-0 from '\x00F\x00\x00\x05' @ 16843 : 1 .. '\x00G\x00\x00\x00' @ 0 : 0; will stop at (end)

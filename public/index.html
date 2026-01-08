@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>B&H Image Downloader</title>
+    <style>
+      :root {
+        --bg: #f6f3ef;
+        --bg-2: #f1f7f6;
+        --ink: #1f2a2e;
+        --muted: #5a6b73;
+        --card: #ffffff;
+        --accent: #1f6f5c;
+        --accent-2: #e9a43b;
+        --line: #e3e0db;
+        --shadow: 0 12px 30px rgba(18, 24, 27, 0.08);
+        --radius: 16px;
+      }
+      body {
+        font-family: "Georgia", "Times New Roman", serif;
+        margin: 0;
+        background: radial-gradient(1200px 500px at 10% -10%, #f5e7d1 0%, transparent 60%),
+          radial-gradient(900px 400px at 90% 0%, #dff2ee 0%, transparent 60%),
+          linear-gradient(180deg, var(--bg), var(--bg-2));
+        color: var(--ink);
+      }
+      label {
+        font-size: 12px;
+        color: var(--muted);
+        display: block;
+        margin-bottom: 6px;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+      .row {
+        display: grid;
+        gap: 16px 14px;
+        align-items: start;
+      }
+      .form-grid {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+          "url name"
+          "quality fetch";
+      }
+      .field.url {
+        grid-area: url;
+      }
+      .field.name {
+        grid-area: name;
+      }
+      .field.quality {
+        grid-area: quality;
+      }
+      #fetch {
+        grid-area: fetch;
+        justify-self: start;
+        margin-top: 22px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        min-width: 0;
+      }
+      input {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fffdf8;
+        box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.03);
+      }
+      button {
+        padding: 12px 14px;
+        cursor: pointer;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fff;
+        box-shadow: var(--shadow);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        height: 44px;
+      }
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 16px 30px rgba(18, 24, 27, 0.12);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 16px;
+        margin-top: 18px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 12px;
+        background: var(--card);
+        box-shadow: var(--shadow);
+        animation: fadeUp 0.35s ease both;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      img {
+        width: 100%;
+        height: 180px;
+        object-fit: contain;
+        background: #f9f6f1;
+        border-radius: 10px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 6px;
+        word-break: break-all;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .select {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+      }
+      .top-actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .badge {
+        font-size: 12px;
+        color: var(--ink);
+        background: #efe9e0;
+        padding: 6px 10px;
+        border-radius: 999px;
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 24px auto 48px;
+        padding: 0 18px;
+      }
+      .hero {
+        background: linear-gradient(140deg, #ffffff, #fdf7ee 60%);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+      }
+      .hero > * {
+        position: relative;
+        z-index: 1;
+      }
+      .hero:after {
+        content: "";
+        position: absolute;
+        right: -80px;
+        top: -60px;
+        width: 240px;
+        height: 240px;
+        background: radial-gradient(circle, rgba(233, 164, 59, 0.25), transparent 60%);
+        border-radius: 50%;
+        pointer-events: none;
+      }
+      .title {
+        font-size: 26px;
+        letter-spacing: 0.01em;
+        margin: 0 0 12px;
+      }
+      .subtitle {
+        margin: 0 0 16px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: #165746;
+      }
+      .primary:hover {
+        box-shadow: 0 16px 30px rgba(31, 111, 92, 0.25);
+      }
+      .row .field {
+        min-width: 0;
+      }
+      .field.compact {
+        flex: 0 0 160px;
+      }
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @media (max-width: 720px) {
+        .title {
+          font-size: 22px;
+        }
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hero">
+        <h2 class="title">B&H Product Image Downloader</h2>
+        <p class="subtitle">
+          Paste a product URL, auto‑fetch gallery images, and export as JPG or
+          WEBP with clean filenames.
+        </p>
+        <div class="row form-grid">
+          <div class="field url">
+            <label for="url">Product URL</label>
+            <input id="url" placeholder="Paste B&H product link here..." />
+          </div>
+          <div class="field name">
+            <label for="name">Product Name (file prefix)</label>
+            <input id="name" placeholder="Auto-filled from product page" />
+          </div>
+          <div class="field quality">
+            <label for="webpQuality">WEBP Quality (50-90)</label>
+            <input id="webpQuality" type="number" min="50" max="90" value="75" />
+          </div>
+          <button id="fetch" class="primary">Fetch Images</button>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <button id="selectAll" disabled>Select All</button>
+        <button id="selectNone" disabled>Select None</button>
+        <button id="downloadSelected" disabled>Download Selected (ZIP)</button>
+        <button id="downloadAll" disabled>Download All (ZIP)</button>
+        <button id="downloadAllWebp" disabled>Download All (WEBP ZIP)</button>
+        <span class="badge" id="count">0 images</span>
+        <span class="badge" id="selected">0 selected</span>
+        <span class="muted" id="status"></span>
+      </div>
+
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <script>
+      const API_BASE =
+        new URLSearchParams(window.location.search).get('api') || ''
+
+      const $ = (id) => document.getElementById(id)
+      const grid = $('grid')
+      const status = $('status')
+      const count = $('count')
+      const downloadAll = $('downloadAll')
+      const downloadAllWebp = $('downloadAllWebp')
+      const downloadSelected = $('downloadSelected')
+      const selectAll = $('selectAll')
+      const selectNone = $('selectNone')
+      const selected = $('selected')
+
+      let items = []
+
+      function setStatus(msg) {
+        status.textContent = msg || ''
+      }
+      function setCount(n) {
+        count.textContent = `${n} images`
+      }
+      function setSelectedCount(n) {
+        selected.textContent = `${n} selected`
+      }
+      function selectedUrls() {
+        return items.filter((x) => x.selected).map((x) => x.hiUrl)
+      }
+      function updateControls() {
+        const total = items.length
+        const sel = selectedUrls().length
+        setCount(total)
+        setSelectedCount(sel)
+        downloadAll.disabled = total === 0
+        downloadAllWebp.disabled = total === 0
+        downloadSelected.disabled = sel === 0
+        selectAll.disabled = total === 0
+        selectNone.disabled = total === 0
+      }
+
+      function renderItems() {
+        grid.innerHTML = ''
+        for (const [idx, it] of items.entries()) {
+          const card = document.createElement('div')
+          card.className = 'card'
+          card.innerHTML = `
+              <img src="${API_BASE}/api/preview?url=${encodeURIComponent(
+                it.previewUrl
+              )}" alt="preview" loading="lazy" />
+            <div class="muted">#${it.id}</div>
+            <div class="actions">
+              <label class="select">
+                <input type="checkbox" data-index="${idx}" ${
+            it.selected ? 'checked' : ''
+          } />
+                Select
+              </label>
+              <button data-url="${encodeURIComponent(
+                it.hiUrl
+              )}">Download</button>
+              <a href="${it.hiUrl}" target="_blank" rel="noreferrer">Open</a>
+            </div>
+            <div class="muted">${it.hiUrl}</div>
+          `
+          card.querySelector('button').addEventListener('click', () => {
+            const u = card.querySelector('button').dataset.url
+              window.location.href = `${API_BASE}/api/download?url=${u}`
+            })
+          card
+            .querySelector('input[type="checkbox"]')
+            .addEventListener('change', (e) => {
+              const i = Number(e.target.dataset.index)
+              items[i].selected = e.target.checked
+              updateControls()
+            })
+          grid.appendChild(card)
+        }
+        updateControls()
+      }
+
+      $('fetch').addEventListener('click', async () => {
+        const url = $('url').value.trim()
+        if (!url) return
+
+        setStatus('Loading...')
+        grid.innerHTML = ''
+        setCount(0)
+        setSelectedCount(0)
+        downloadAll.disabled = true
+        downloadSelected.disabled = true
+        selectAll.disabled = true
+        selectNone.disabled = true
+        items = []
+
+        try {
+          const r = await fetch(`${API_BASE}/api/extract`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url }),
+          })
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Failed')
+
+          items = (data.items || []).map((x) => ({ ...x, selected: true }))
+          if (data.productName && !$('name').value.trim()) {
+            $('name').value = data.productName
+          }
+          setStatus(items.length ? 'Done' : 'No images found')
+          renderItems()
+        } catch (e) {
+          setStatus('Error: ' + (e.message || e))
+        }
+      })
+
+      async function downloadZip(urls, endpoint) {
+        if (!urls.length) return
+        setStatus('Preparing ZIP...')
+        try {
+          const r = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              urls,
+              name: $('name').value.trim(),
+              quality: Number($('webpQuality').value || 75),
+            }),
+          })
+          if (!r.ok) throw new Error('ZIP failed')
+
+          const blob = await r.blob()
+          const a = document.createElement('a')
+          a.href = URL.createObjectURL(blob)
+          const base =
+            $('name').value.trim().replace(/\s+/g, '-') || 'bh-images'
+          a.download =
+            endpoint === '/api/zip-webp' ? `${base}-webp.zip` : `${base}.zip`
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+          setStatus('Downloaded')
+        } catch (e) {
+          setStatus('Error: ' + (e.message || e))
+        }
+      }
+
+      downloadAll.addEventListener('click', async () => {
+        await downloadZip(items.map((x) => x.hiUrl), '/api/zip')
+      })
+
+      downloadAllWebp.addEventListener('click', async () => {
+        await downloadZip(items.map((x) => x.hiUrl), '/api/zip-webp')
+      })
+
+      downloadSelected.addEventListener('click', async () => {
+        await downloadZip(selectedUrls(), '/api/zip')
+      })
+
+      selectAll.addEventListener('click', () => {
+        items = items.map((x) => ({ ...x, selected: true }))
+        renderItems()
+      })
+
+      selectNone.addEventListener('click', () => {
+        items = items.map((x) => ({ ...x, selected: false }))
+        renderItems()
+      })
+    </script>
+  </body>
+</html>
