@@ -238,6 +238,36 @@ app.post('/api/extract', async (req, res) => {
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
       })
     }
+    const cfClearance = process.env.CF_CLEARANCE
+    const cfBm = process.env.CF_BM
+    if (cfClearance || cfBm) {
+      const cookies = []
+      if (cfClearance) {
+        cookies.push({
+          name: 'cf_clearance',
+          value: cfClearance,
+          domain: '.bhphotovideo.com',
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'Lax',
+        })
+      }
+      if (cfBm) {
+        cookies.push({
+          name: '__cf_bm',
+          value: cfBm,
+          domain: '.bhphotovideo.com',
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'Lax',
+        })
+      }
+      if (cookies.length) {
+        await context.addCookies(cookies)
+      }
+    }
     page = await context.newPage()
     await page.setExtraHTTPHeaders({
       'accept-language': 'en-US,en;q=0.9',
