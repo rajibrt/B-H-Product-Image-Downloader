@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "B&H Image Grabber",
+  "version": "1.0.0",
+  "description": "Extract B&H product gallery images and open the downloader app.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.bhphotovideo.com/*"],
+      "js": ["content-bh.js"]
+    },
+    {
+      "matches": ["https://bhphoto.camerabazar.net/*"],
+      "js": ["content-app.js"]
+    }
+  ]
+}

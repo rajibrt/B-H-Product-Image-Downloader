@@ -340,7 +340,9 @@
         selected.textContent = `${n} selected`
       }
       function selectedUrls() {
-        return items.filter((x) => x.selected).map((x) => x.hiUrl)
+        return items
+          .filter((x) => x.selected)
+          .map((x) => x.rawUrl || x.hiUrl)
       }
       function updateControls() {
         const total = items.length
@@ -360,9 +362,14 @@
           const card = document.createElement('div')
           card.className = 'card'
           card.innerHTML = `
-              <img src="${API_BASE}/api/preview?url=${encodeURIComponent(
-                it.previewUrl
-              )}" alt="preview" loading="lazy" />
+              <img
+                src="${API_BASE}/api/preview?url=${encodeURIComponent(
+                  it.previewUrl
+                )}"
+                data-fallback="${it.rawUrl || it.previewUrl}"
+                alt="preview"
+                loading="lazy"
+              />
             <div class="muted">#${it.id}</div>
             <div class="actions">
               <label class="select">
@@ -372,12 +379,19 @@
                 Select
               </label>
               <button data-url="${encodeURIComponent(
-                it.hiUrl
+                it.rawUrl || it.hiUrl
               )}">Download</button>
               <a href="${it.hiUrl}" target="_blank" rel="noreferrer">Open</a>
             </div>
             <div class="muted">${it.hiUrl}</div>
           `
+          const img = card.querySelector('img')
+          img.addEventListener('error', () => {
+            const fallback = img.dataset.fallback
+            if (fallback && img.src !== fallback) {
+              img.src = fallback
+            }
+          })
           card.querySelector('button').addEventListener('click', () => {
             const u = card.querySelector('button').dataset.url
               window.location.href = `${API_BASE}/api/download?url=${u}`
@@ -585,11 +599,17 @@
       }
 
       downloadAll.addEventListener('click', async () => {
-        await downloadZip(items.map((x) => x.hiUrl), '/api/zip')
+        await downloadZip(
+          items.map((x) => x.rawUrl || x.hiUrl),
+          '/api/zip'
+        )
       })
 
       downloadAllWebp.addEventListener('click', async () => {
-        await downloadZip(items.map((x) => x.hiUrl), '/api/zip-webp')
+        await downloadZip(
+          items.map((x) => x.rawUrl || x.hiUrl),
+          '/api/zip-webp'
+        )
       })
 
       downloadSelected.addEventListener('click', async () => {

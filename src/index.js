@@ -824,8 +824,12 @@ app.get('/api/download', async (req, res) => {
     return res.status(400).send('Missing url')
 
   try {
-    const hiUrl = toHiRes(url)
-    const r = await fetchWithHeaders(hiUrl)
+    const rawUrl = normalizeUrl(url)
+    const hiUrl = toHiRes(rawUrl)
+    let r = await fetchWithHeaders(hiUrl)
+    if (!r.ok && hiUrl !== rawUrl) {
+      r = await fetchWithHeaders(rawUrl)
+    }
     if (!r.ok) return res.status(502).send('Upstream fetch failed')
 
     const ct = r.headers.get('content-type') || 'application/octet-stream'
@@ -864,8 +868,12 @@ app.post('/api/zip', async (req, res) => {
   let idx = 1
   for (const u of urls) {
     try {
-      const hiUrl = toHiRes(u)
-      const r = await fetchWithHeaders(hiUrl)
+      const rawUrl = normalizeUrl(u)
+      const hiUrl = toHiRes(rawUrl)
+      let r = await fetchWithHeaders(hiUrl)
+      if (!r.ok && hiUrl !== rawUrl) {
+        r = await fetchWithHeaders(rawUrl)
+      }
       if (!r.ok) continue
 
       const ct = r.headers.get('content-type') || ''
@@ -912,8 +920,12 @@ app.post('/api/zip-webp', async (req, res) => {
   let idx = 1
   for (const u of urls) {
     try {
-      const hiUrl = toHiRes(u)
-      const r = await fetchWithHeaders(hiUrl)
+      const rawUrl = normalizeUrl(u)
+      const hiUrl = toHiRes(rawUrl)
+      let r = await fetchWithHeaders(hiUrl)
+      if (!r.ok && hiUrl !== rawUrl) {
+        r = await fetchWithHeaders(rawUrl)
+      }
       if (!r.ok) continue
 
       const buf = Buffer.from(await r.arrayBuffer())
@@ -945,7 +957,13 @@ app.get('/api/preview', async (req, res) => {
     ) {
       return res.status(400).send('Invalid url')
     }
-    const r = await fetchWithHeaders(previewUrl)
+    let r = await fetchWithHeaders(previewUrl)
+    if (!r.ok) {
+      const hiUrl = toHiRes(previewUrl)
+      if (hiUrl !== previewUrl) {
+        r = await fetchWithHeaders(hiUrl)
+      }
+    }
     if (!r.ok) return res.status(502).send('Upstream fetch failed')
     const ct = r.headers.get('content-type') || 'application/octet-stream'
     res.setHeader('Content-Type', ct)
