@@ -73,6 +73,17 @@
         background: #fffdf8;
         box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.03);
       }
+      textarea {
+        width: 100%;
+        padding: 12px;
+        font-size: 13px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fffdf8;
+        box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.03);
+        min-height: 130px;
+        resize: vertical;
+      }
       button {
         padding: 12px 14px;
         cursor: pointer;
@@ -183,6 +194,9 @@
         letter-spacing: 0.01em;
         margin: 0 0 12px;
       }
+      .title.small {
+        font-size: 20px;
+      }
       .subtitle {
         margin: 0 0 16px;
         color: var(--muted);
@@ -195,6 +209,18 @@
       }
       .primary:hover {
         box-shadow: 0 16px 30px rgba(31, 111, 92, 0.25);
+      }
+      .client-grid {
+        grid-template-columns: 1fr 240px;
+        align-items: end;
+      }
+      .helper-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .helper-actions .muted {
+        margin-top: 0;
       }
       .row .field {
         min-width: 0;
@@ -217,6 +243,9 @@
           font-size: 22px;
         }
         .form-grid {
+          grid-template-columns: 1fr;
+        }
+        .client-grid {
           grid-template-columns: 1fr;
         }
       }
@@ -244,6 +273,28 @@
             <input id="webpQuality" type="number" min="50" max="90" value="75" />
           </div>
           <button id="fetch" class="primary">Fetch Images</button>
+        </div>
+      </div>
+
+      <div class="hero" style="margin-top: 16px">
+        <h3 class="title small">Client-side Extract (Cloudflare-safe)</h3>
+        <p class="subtitle">
+          Open the product page in your browser, open the gallery modal, run the
+          extractor script in the console, then paste the URLs here.
+        </p>
+        <div class="row client-grid">
+          <div class="field">
+            <label for="pasteUrls">Paste extracted URLs (JSON array or newline)</label>
+            <textarea
+              id="pasteUrls"
+              placeholder='["https://static.bhphoto.com/images/...jpg", ...]'
+            ></textarea>
+          </div>
+          <div class="helper-actions">
+            <button id="copyExtractor">Copy Extractor Script</button>
+            <button id="importUrls" class="primary">Import URLs</button>
+            <span class="muted" id="copyStatus"></span>
+          </div>
         </div>
       </div>
 
@@ -275,6 +326,7 @@
       const selectAll = $('selectAll')
       const selectNone = $('selectNone')
       const selected = $('selected')
+      const copyStatus = $('copyStatus')
 
       let items = []
 
@@ -341,6 +393,131 @@
         }
         updateControls()
       }
+
+      function normalizeUrl(url) {
+        if (!url || typeof url !== 'string') return null
+        let u = url.trim()
+        if (u.startsWith('//')) u = 'https:' + u
+        return u
+      }
+
+      function isBhImageUrl(url) {
+        if (!url) return false
+        const u = normalizeUrl(url) || ''
+        return (
+          (u.includes('bhphotovideo.com/') || u.includes('bhphoto.com/')) &&
+          (u.includes('/images/') || u.includes('/cdn-cgi/image/'))
+        )
+      }
+
+      function toHiRes(url) {
+        if (!url || typeof url !== 'string') return null
+        let u = url.replace(/^http:\/\//i, 'https://')
+        u = u.replace(/\/images\/images\d+x\d+\//i, '/images/images2000x2000/')
+        u = u.replace(
+          /\/images\/multiple_images\/thumbnails\//i,
+          '/images/multiple_images/images2000x2000/'
+        )
+        u = u.replace(
+          /\/images\/multiple_images\/thumbs\//i,
+          '/images/multiple_images/images2000x2000/'
+        )
+        u = u.replace(
+          /\/images\/multiple_images\/images\d+x\d+\//i,
+          '/images/multiple_images/images2000x2000/'
+        )
+        u = u.replace(/\/images\/smallimages\//i, '/images/images2000x2000/')
+        return u
+      }
+
+      function parseInputUrls(text) {
+        if (!text) return []
+        const trimmed = text.trim()
+        if (!trimmed) return []
+        let list = []
+        try {
+          const parsed = JSON.parse(trimmed)
+          if (Array.isArray(parsed)) list = parsed
+          else if (parsed && Array.isArray(parsed.urls)) list = parsed.urls
+        } catch {}
+        if (!list.length) {
+          list = trimmed.split(/[\s,]+/g)
+        }
+        return list
+          .map((x) => String(x || '').trim().replace(/^"+|"+$/g, ''))
+          .map(normalizeUrl)
+          .filter(isBhImageUrl)
+      }
+
+      const extractorScript = `(() => {
+  const root = document.querySelector('[data-selenium="modalContent"]') ||
+    document.querySelector('[data-selenium="mediaGalleryModal"]') || document;
+  const urls = new Set();
+  const pick = (v) => {
+    if (!v || typeof v !== 'string') return;
+    const u = v.startsWith('//') ? 'https:' + v : v;
+    urls.add(u);
+  };
+  root.querySelectorAll('img').forEach((img) => {
+    pick(img.src);
+    pick(img.getAttribute('data-src'));
+    pick(img.getAttribute('data-lazy'));
+    pick(img.getAttribute('data-original'));
+    pick(img.getAttribute('srcset'));
+    pick(img.getAttribute('data-srcset'));
+  });
+  root.querySelectorAll('[data-zoom-image],[data-full],[data-hires]').forEach((el) => {
+    pick(el.getAttribute('data-zoom-image'));
+    pick(el.getAttribute('data-full'));
+    pick(el.getAttribute('data-hires'));
+  });
+  const expanded = [];
+  urls.forEach((u) => {
+    if (u.includes(' ')) {
+      u.split(',').forEach((p) => expanded.push(p.trim().split(' ')[0]));
+    } else {
+      expanded.push(u);
+    }
+  });
+  const filtered = expanded.filter((u) =>
+    /bhphoto(video)?\\.com\\//i.test(u) && /\\/images\\//i.test(u)
+  );
+  const text = JSON.stringify(Array.from(new Set(filtered)), null, 2);
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      console.log('Copied URLs:', filtered.length);
+    }).catch(() => console.log(text));
+  } else {
+    console.log(text);
+  }
+})();`
+
+      $('copyExtractor').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(extractorScript)
+          copyStatus.textContent =
+            'Script copied. Paste into product page console.'
+        } catch {
+          copyStatus.textContent =
+            'Copy failed. Select and copy from console manually.'
+          console.log(extractorScript)
+        }
+      })
+
+      $('importUrls').addEventListener('click', () => {
+        const raw = $('pasteUrls').value || ''
+        const urls = parseInputUrls(raw)
+        const unique = Array.from(new Set(urls)).filter(Boolean)
+        items = unique.map((rawUrl, i) => ({
+          id: i + 1,
+          rawUrl,
+          hiUrl: toHiRes(rawUrl),
+          previewUrl: rawUrl,
+          selected: true,
+        }))
+        setStatus(items.length ? 'Imported URLs' : 'No URLs found')
+        renderItems()
+      })
 
       $('fetch').addEventListener('click', async () => {
         const url = $('url').value.trim()

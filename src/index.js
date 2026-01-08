@@ -938,14 +938,14 @@ app.get('/api/preview', async (req, res) => {
   if (!url || typeof url !== 'string')
     return res.status(400).send('Missing url')
   try {
-    const hiUrl = toHiRes(url)
+    const previewUrl = normalizeUrl(url)
     if (
-      (!isLikelyGalleryImage(hiUrl) && !isBhImageUrl(hiUrl)) ||
-      /[{}"]/g.test(hiUrl)
+      (!isLikelyGalleryImage(previewUrl) && !isBhImageUrl(previewUrl)) ||
+      /[{}"]/g.test(previewUrl)
     ) {
       return res.status(400).send('Invalid url')
     }
-    const r = await fetchWithHeaders(hiUrl)
+    const r = await fetchWithHeaders(previewUrl)
     if (!r.ok) return res.status(502).send('Upstream fetch failed')
     const ct = r.headers.get('content-type') || 'application/octet-stream'
     res.setHeader('Content-Type', ct)
