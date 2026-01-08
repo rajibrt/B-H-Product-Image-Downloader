@@ -154,16 +154,27 @@ async function getFetch() {
   return mod.default
 }
 
+function getUserAgent() {
+  return (
+    process.env.CF_UA ||
+    process.env.USER_AGENT ||
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'
+  )
+}
+
+function getAcceptLanguage() {
+  return process.env.CF_ACCEPT_LANGUAGE || 'en-US,en;q=0.9'
+}
+
 async function fetchWithHeaders(url) {
   const fetchFn = await getFetch()
   return fetchFn(url, {
     redirect: 'follow',
     headers: {
-      'user-agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+      'user-agent': getUserAgent(),
       accept: 'image/avif,image/webp,image/*,*/*;q=0.8',
       referer: 'https://www.bhphotovideo.com/',
-      'accept-language': 'en-US,en;q=0.9',
+      'accept-language': getAcceptLanguage(),
     },
   })
 }
@@ -195,6 +206,8 @@ app.post('/api/extract', async (req, res) => {
   let blocked = false
   try {
     const { chromium } = await import('playwright')
+    const userAgent = getUserAgent()
+    const acceptLanguage = getAcceptLanguage()
     const headless =
       process.env.HEADFUL === '1' || process.env.HEADLESS === '0' ? false : true
     const usePersistent = !headless && process.env.PERSISTENT !== '0'
@@ -206,8 +219,7 @@ app.post('/api/extract', async (req, res) => {
         persistentContext = await chromium.launchPersistentContext(profileDir, {
           headless,
           args: ['--disable-blink-features=AutomationControlled'],
-          userAgent:
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+          userAgent,
           locale: 'en-US',
           timezoneId: 'Asia/Dhaka',
           viewport: { width: 1280, height: 800 },
@@ -227,8 +239,7 @@ app.post('/api/extract', async (req, res) => {
       const storagePath = 'storage/bh.json'
       const hasStorage = fs.existsSync(storagePath)
       context = await browser.newContext({
-        userAgent:
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+        userAgent,
         locale: 'en-US',
         timezoneId: 'Asia/Dhaka',
         viewport: { width: 1280, height: 800 },
@@ -240,6 +251,7 @@ app.post('/api/extract', async (req, res) => {
     }
     const cfClearance = process.env.CF_CLEARANCE
     const cfBm = process.env.CF_BM
+    let cfCookiesApplied = false
     if (cfClearance || cfBm) {
       const cookies = []
       if (cfClearance) {
@@ -266,11 +278,12 @@ app.post('/api/extract', async (req, res) => {
       }
       if (cookies.length) {
         await context.addCookies(cookies)
+        cfCookiesApplied = true
       }
     }
     page = await context.newPage()
     await page.setExtraHTTPHeaders({
-      'accept-language': 'en-US,en;q=0.9',
+      'accept-language': acceptLanguage,
     })
 
     const responseUrls = new Set()
@@ -769,6 +782,10 @@ app.post('/api/extract', async (req, res) => {
         items,
         productName,
         debug: {
+          headless,
+          userAgent,
+          acceptLanguage,
+          cfCookiesApplied,
           raw: raw.length,
           expandedRaw: expandedRaw.length,
           hi: hi.length,
