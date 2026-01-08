@@ -196,13 +196,12 @@ app.post('/api/extract', async (req, res) => {
   try {
     const { chromium } = await import('playwright')
     const headless =
-      process.env.HEADFUL === '1' || process.env.HEADLESS === '0'
-        ? false
-        : true
+      process.env.HEADFUL === '1' || process.env.HEADLESS === '0' ? false : true
     const usePersistent = !headless && process.env.PERSISTENT !== '0'
     if (usePersistent) {
       const profileDir = 'storage/profile'
-      if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true })
+      if (!fs.existsSync(profileDir))
+        fs.mkdirSync(profileDir, { recursive: true })
       if (!persistentContext) {
         persistentContext = await chromium.launchPersistentContext(profileDir, {
           headless,
@@ -214,7 +213,9 @@ app.post('/api/extract', async (req, res) => {
           viewport: { width: 1280, height: 800 },
         })
         await persistentContext.addInitScript(() => {
-          Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
+          Object.defineProperty(navigator, 'webdriver', {
+            get: () => undefined,
+          })
         })
       }
       context = persistentContext
@@ -289,7 +290,9 @@ app.post('/api/extract', async (req, res) => {
           const clickable = page.locator(sel).first()
           if ((await clickable.count()) > 0) {
             await clickable.scrollIntoViewIfNeeded().catch(() => {})
-            await clickable.click({ timeout: 5000, force: true }).catch(() => {})
+            await clickable
+              .click({ timeout: 5000, force: true })
+              .catch(() => {})
             const opened = await page
               .waitForSelector('[data-selenium="modalContent"]', {
                 timeout: 6000,
@@ -303,7 +306,9 @@ app.post('/api/extract', async (req, res) => {
     } catch {}
 
     const modalLocator = page
-      .locator('[data-selenium="modalContent"], [data-selenium="mediaGalleryModal"]')
+      .locator(
+        '[data-selenium="modalContent"], [data-selenium="mediaGalleryModal"]'
+      )
       .first()
     const modalFound = (await modalLocator.count()) > 0
     if (forceModal && !modalFound) {
@@ -323,8 +328,14 @@ app.post('/api/extract', async (req, res) => {
         const thumbCount = await thumbs.count()
         if (thumbCount > 0) {
           for (let i = 0; i < thumbCount; i++) {
-            await thumbs.nth(i).scrollIntoViewIfNeeded().catch(() => {})
-            await thumbs.nth(i).click({ timeout: 3000, force: true }).catch(() => {})
+            await thumbs
+              .nth(i)
+              .scrollIntoViewIfNeeded()
+              .catch(() => {})
+            await thumbs
+              .nth(i)
+              .click({ timeout: 3000, force: true })
+              .catch(() => {})
             await page.waitForTimeout(150)
             const urls = await page.evaluate(() => {
               const root =
@@ -346,15 +357,15 @@ app.post('/api/extract', async (req, res) => {
                 const ds = img.getAttribute('data-srcset')
                 if (ds) pick(ds)
               })
-              root.querySelectorAll('[data-zoom-image]').forEach((el) =>
-                pick(el.getAttribute('data-zoom-image'))
-              )
-              root.querySelectorAll('[data-full]').forEach((el) =>
-                pick(el.getAttribute('data-full'))
-              )
-              root.querySelectorAll('[data-hires]').forEach((el) =>
-                pick(el.getAttribute('data-hires'))
-              )
+              root
+                .querySelectorAll('[data-zoom-image]')
+                .forEach((el) => pick(el.getAttribute('data-zoom-image')))
+              root
+                .querySelectorAll('[data-full]')
+                .forEach((el) => pick(el.getAttribute('data-full')))
+              root
+                .querySelectorAll('[data-hires]')
+                .forEach((el) => pick(el.getAttribute('data-hires')))
               return Array.from(out)
             })
             urls
@@ -394,15 +405,15 @@ app.post('/api/extract', async (req, res) => {
               const ds = img.getAttribute('data-srcset')
               if (ds) pick(ds)
             })
-            root.querySelectorAll('[data-zoom-image]').forEach((el) =>
-              pick(el.getAttribute('data-zoom-image'))
-            )
-            root.querySelectorAll('[data-full]').forEach((el) =>
-              pick(el.getAttribute('data-full'))
-            )
-            root.querySelectorAll('[data-hires]').forEach((el) =>
-              pick(el.getAttribute('data-hires'))
-            )
+            root
+              .querySelectorAll('[data-zoom-image]')
+              .forEach((el) => pick(el.getAttribute('data-zoom-image')))
+            root
+              .querySelectorAll('[data-full]')
+              .forEach((el) => pick(el.getAttribute('data-full')))
+            root
+              .querySelectorAll('[data-hires]')
+              .forEach((el) => pick(el.getAttribute('data-hires')))
             return Array.from(out)
           })
           const before = modalSequenceUrls.size
@@ -653,7 +664,9 @@ app.post('/api/extract', async (req, res) => {
       .filter(isLikelyGalleryImage)
 
     const merged = (modalFound ? filtered : fallbackFiltered)
-      .concat(modalFound ? Array.from(modalSequenceUrls) : Array.from(responseUrls))
+      .concat(
+        modalFound ? Array.from(modalSequenceUrls) : Array.from(responseUrls)
+      )
       .concat(modalFound ? [] : Array.from(jsonUrls))
       .concat(modalFound ? [] : htmlFiltered)
       .concat(modalFound ? [] : relFiltered)
@@ -744,12 +757,10 @@ app.post('/api/extract', async (req, res) => {
     }
     res.json({ count: items.length, items, productName })
   } catch (e) {
-    res
-      .status(500)
-      .json({
-        error: 'Failed to extract images',
-        details: String(e?.message || e),
-      })
+    res.status(500).json({
+      error: 'Failed to extract images',
+      details: String(e?.message || e),
+    })
   } finally {
     if (page && !(blocked && !browser)) {
       await page.close().catch(() => {})
@@ -838,7 +849,10 @@ app.post('/api/zip-webp', async (req, res) => {
 
   const base = safeBaseName(name)
   res.setHeader('Content-Type', 'application/zip')
-  res.setHeader('Content-Disposition', `attachment; filename="${base}-webp.zip"`)
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${base}-webp.zip"`
+  )
 
   const archive = archiver('zip', { zlib: { level: 9 } })
   archive.on('error', () => res.status(500).end())
@@ -879,8 +893,7 @@ app.get('/api/preview', async (req, res) => {
   try {
     const hiUrl = toHiRes(url)
     if (
-      !isLikelyGalleryImage(hiUrl) &&
-      !isBhImageUrl(hiUrl) ||
+      (!isLikelyGalleryImage(hiUrl) && !isBhImageUrl(hiUrl)) ||
       /[{}"]/g.test(hiUrl)
     ) {
       return res.status(400).send('Invalid url')
@@ -900,3 +913,5 @@ const port = process.env.PORT || 3000
 app.listen(port, () => {
   console.log(`Running: http://localhost:${port}`)
 })
+
+export default app
