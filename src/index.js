@@ -15,6 +15,23 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }))
 app.use(express.static('public'))
 
+const SIZE_CANDIDATES = [2000, 1800, 1600, 1500, 1200, 1000, 800, 600, 500, 400]
+
+function unwrapCdnImage(url) {
+  const cfPrefix = '/cdn-cgi/image/'
+  if (!url || !url.includes(cfPrefix)) return url
+  const tail = url.split(cfPrefix)[1]
+  if (!tail) return url
+  const slashIndex = tail.indexOf('/')
+  if (slashIndex === -1) return url
+  const encoded = tail.substring(slashIndex + 1)
+  try {
+    return decodeURIComponent(encoded)
+  } catch {
+    return url
+  }
+}
+
 /**
  * Normalize B&H image URL to highest likely quality.
  * Handles Cloudflare cdn-cgi/image wrapper and upsizes images{N}x{N} to images2000x2000.
@@ -22,19 +39,7 @@ app.use(express.static('public'))
 function toHiRes(url) {
   if (!url || typeof url !== 'string') return null
 
-  // If it's a Cloudflare resized URL like:
-  // https://www.bhphotovideo.com/cdn-cgi/image/fit=scale-down,width=500,quality=95/https%3A//www.bhphotovideo.com/images/images500x500/...
-  const cfPrefix = '/cdn-cgi/image/'
-  if (url.includes(cfPrefix)) {
-    const tail = url.split(cfPrefix)[1]
-    // tail = "fit=.../https%3A//www.bhphotovideo.com/images/images500x500/..."
-    const encoded = tail.substring(tail.indexOf('/') + 1)
-    try {
-      url = decodeURIComponent(encoded)
-    } catch {
-      // if decode fails, keep original
-    }
-  }
+  url = unwrapCdnImage(url)
 
   // Force https
   url = url.replace(/^http:\/\//i, 'https://')
@@ -45,24 +50,83 @@ function toHiRes(url) {
   // Upsize common thumbnail folders
   url = url.replace(
     /\/images\/multiple_images\/thumbnails\//i,
-    '/images/multiple_images/'
+    '/images/multiple_images/images2000x2000/'
   )
   url = url.replace(
     /\/images\/multiple_images\/thumbs\//i,
-    '/images/multiple_images/'
+    '/images/multiple_images/images2000x2000/'
   )
   url = url.replace(
     /\/images\/multiple_images\/images\d+x\d+\//i,
     '/images/multiple_images/images2000x2000/'
   )
+  url = url.replace(
+    /\/images\/multiple_images\/(?!images\d+x\d+\/)/i,
+    '/images/multiple_images/images2000x2000/'
+  )
   url = url.replace(/\/images\/smallimages\//i, '/images/images2000x2000/')
 
   // If still a cdn-cgi image URL, try bump width
-  if (url.includes(cfPrefix)) {
+  if (url.includes('/cdn-cgi/image/')) {
     url = url.replace(/width=\d+/i, 'width=2000')
   }
 
   return url
+}
+
+function buildSizeCandidates(url) {
+  if (!url || typeof url !== 'string') return []
+  const raw = normalizeUrl(url)
+  if (!raw) return []
+  const candidates = []
+  const add = (u) => {
+    if (u && !candidates.includes(u)) candidates.push(u)
+  }
+
+  const unwrapped = unwrapCdnImage(raw)
+  let u = (unwrapped || raw).replace(/^http:\/\//i, 'https://')
+
+  let template = null
+  if (/\/images\/images\d+x\d+\//i.test(u)) {
+    template = u.replace(/\/images\/images\d+x\d+\//i, '/images/images{SIZE}x{SIZE}/')
+  } else if (/\/images\/multiple_images\/images\d+x\d+\//i.test(u)) {
+    template = u.replace(
+      /\/images\/multiple_images\/images\d+x\d+\//i,
+      '/images/multiple_images/images{SIZE}x{SIZE}/'
+    )
+  } else if (/\/images\/multiple_images\/(?:thumbnails|thumbs)\//i.test(u)) {
+    template = u.replace(
+      /\/images\/multiple_images\/(?:thumbnails|thumbs)\//i,
+      '/images/multiple_images/images{SIZE}x{SIZE}/'
+    )
+  } else if (/\/images\/multiple_images\//i.test(u)) {
+    template = u.replace(
+      /\/images\/multiple_images\/(?!images\d+x\d+\/)/i,
+      '/images/multiple_images/images{SIZE}x{SIZE}/'
+    )
+  } else if (/\/images\/smallimages\//i.test(u)) {
+    template = u.replace(/\/images\/smallimages\//i, '/images/images{SIZE}x{SIZE}/')
+  }
+
+  if (template) {
+    SIZE_CANDIDATES.forEach((s) =>
+      add(template.replace(/\{SIZE\}/g, String(s)))
+    )
+  }
+
+  add(u)
+  if (raw !== u) add(raw)
+
+  return candidates
+}
+
+async function fetchBestImage(url) {
+  const candidates = buildSizeCandidates(url)
+  for (const candidate of candidates) {
+    const r = await fetchWithHeaders(candidate)
+    if (r.ok) return { url: candidate, response: r }
+  }
+  return null
 }
 
 function uniq(arr) {
@@ -109,11 +173,73 @@ function isLikelyGalleryImage(url) {
 function isMainHiRes(url) {
   const u = normalizeUrl(url) || ''
   return (
-    u.includes('/images/images2000x2000/') ||
-    u.includes('/images/multiple_images/images2000x2000/') ||
+    /\/images\/images\d+x\d+\//i.test(u) ||
+    /\/images\/multiple_images\/images\d+x\d+\//i.test(u) ||
     u.includes('/images/itemzoom/') ||
     u.includes('/images/largeimages/')
   )
+}
+
+function toPreviewUrl(url) {
+  if (!url || typeof url !== 'string') return null
+  let u = url.replace(/^http:\/\//i, 'https://')
+  u = u.replace(/\/images\/images\d+x\d+\//i, '/images/images500x500/')
+  u = u.replace(
+    /\/images\/multiple_images\/images\d+x\d+\//i,
+    '/images/multiple_images/images500x500/'
+  )
+  u = u.replace(
+    /\/images\/multiple_images\/(thumbnails|thumbs)\//i,
+    '/images/multiple_images/images500x500/'
+  )
+  return u
+}
+
+function sizeFromUrl(url) {
+  const clean = (url || '').split('?')[0]
+  const match = clean.match(/\/images(?:\/multiple_images)?\/images(\d+)x\1\//i)
+  if (!match) return null
+  const size = Number(match[1])
+  return Number.isFinite(size) ? size : null
+}
+
+function imageKey(url) {
+  const clean = (url || '').split('?')[0]
+  const parts = clean.split('/')
+  return parts[parts.length - 1] || clean
+}
+
+function pickLargestByKey(urls) {
+  const byKey = new Map()
+  for (const u of urls) {
+    const key = imageKey(u)
+    const size = sizeFromUrl(u)
+    const rank = size === null ? Number.POSITIVE_INFINITY : size
+    const prev = byKey.get(key)
+    if (!prev || rank > prev.rank) {
+      byKey.set(key, { url: u, rank })
+    }
+  }
+  return Array.from(byKey.values()).map((v) => v.url)
+}
+
+function needsUpsize(url) {
+  return (
+    /\/images\/images\d+x\d+\//i.test(url) ||
+    /\/images\/multiple_images\/images\d+x\d+\//i.test(url) ||
+    /\/images\/multiple_images\/(thumbnails|thumbs)\//i.test(url) ||
+    /\/images\/smallimages\//i.test(url)
+  )
+}
+
+async function resolveBestGalleryUrl(rawUrl) {
+  const normalized = normalizeUrl(rawUrl)
+  if (!normalized) return null
+  if (!needsUpsize(normalized)) return normalized
+  const best = await fetchBestImage(normalized)
+  if (!best) return normalized
+  if (best.response?.body?.cancel) best.response.body.cancel()
+  return best.url
 }
 
 function extractUrlsFromString(value) {
@@ -741,13 +867,25 @@ app.post('/api/extract', async (req, res) => {
       }
     }
 
-    const hi = uniq(merged.map(toHiRes)).filter(isMainHiRes)
+    const rawImages = uniq(merged.map(normalizeUrl)).filter(isLikelyGalleryImage)
+    const pickedImages = pickLargestByKey(rawImages)
+    const primaryCandidate = modalFound
+      ? Array.from(modalSequenceUrls)[0]
+      : null
+    const primaryKey = primaryCandidate ? imageKey(primaryCandidate) : null
+    const orderedImages = primaryKey
+      ? [
+          ...pickedImages.filter((u) => imageKey(u) === primaryKey),
+          ...pickedImages.filter((u) => imageKey(u) !== primaryKey),
+        ]
+      : pickedImages
 
     const debug = req.query.debug === '1'
     if (debug) {
       const imgCount = await page.locator('img').count()
       console.log('[extract] raw:', raw.length)
-      console.log('[extract] hi:', hi.length)
+      console.log('[extract] rawImages:', rawImages.length)
+      console.log('[extract] pickedImages:', pickedImages.length)
       console.log('[extract] htmlMatches:', htmlMatches.length)
       console.log('[extract] jsonUrls:', jsonUrls.size)
       console.log('[extract] htmlExtracted:', htmlExtracted.length)
@@ -757,23 +895,41 @@ app.post('/api/extract', async (req, res) => {
     }
 
     // Return as objects for UI
-    const productName = pageTitle
-      .replace(/\s*\|\s*B&H.*$/i, '')
-      .replace(/\s*-\s*B&H.*$/i, '')
-      .replace(/\s*B&H.*$/i, '')
-      .trim()
+    const pageName = await page.evaluate(() => {
+      const selectors = [
+        '[data-selenium="productTitle"]',
+        '[data-selenium="product-title"]',
+        '[data-selenium="productTitleText"]',
+        'h1',
+      ]
+      for (const sel of selectors) {
+        const el = document.querySelector(sel)
+        const text = (el && el.textContent) || ''
+        const clean = text.replace(/\s+/g, ' ').trim()
+        if (clean) return clean
+      }
+      return ''
+    })
+    const productName =
+      pageName ||
+      pageTitle
+        .replace(/\s*\|\s*B&H.*$/i, '')
+        .replace(/\s*-\s*B&H.*$/i, '')
+        .replace(/\s*B&H.*$/i, '')
+        .trim()
 
-    const items = hi.map((hiUrl, i) => ({
-      id: i + 1,
-      hiUrl,
-      // a lightweight preview: downscale via cdn-cgi if possible
-      previewUrl: hiUrl.includes('/images/images')
-        ? hiUrl.replace(
-            /\/images\/images2000x2000\//i,
-            '/images/images500x500/'
-          )
-        : hiUrl,
-    }))
+    const items = []
+    let resolvedCount = 0
+    for (const rawUrl of orderedImages) {
+      const hiUrl = await resolveBestGalleryUrl(rawUrl)
+      if (hiUrl && hiUrl !== rawUrl) resolvedCount++
+      items.push({
+        id: items.length + 1,
+        rawUrl,
+        hiUrl: hiUrl || rawUrl,
+        previewUrl: toPreviewUrl(hiUrl || rawUrl) || rawUrl,
+      })
+    }
 
     if (debug) {
       const imgCount = await page.locator('img').count()
@@ -788,7 +944,9 @@ app.post('/api/extract', async (req, res) => {
           cfCookiesApplied,
           raw: raw.length,
           expandedRaw: expandedRaw.length,
-          hi: hi.length,
+          rawImages: rawImages.length,
+          pickedImages: pickedImages.length,
+          resolvedCount,
           htmlMatches: htmlMatches.length,
           jsonUrls: jsonUrls.size,
           htmlExtracted: htmlExtracted.length,
@@ -798,7 +956,8 @@ app.post('/api/extract', async (req, res) => {
           modalFound,
           sampleRaw: raw.slice(0, 5),
           fallbackRaw: fallbackRaw.length,
-          sampleHi: hi.slice(0, 5),
+          sampleRawImages: rawImages.slice(0, 5),
+          samplePickedImages: pickedImages.slice(0, 5),
         },
       })
     }
@@ -824,13 +983,9 @@ app.get('/api/download', async (req, res) => {
     return res.status(400).send('Missing url')
 
   try {
-    const rawUrl = normalizeUrl(url)
-    const hiUrl = toHiRes(rawUrl)
-    let r = await fetchWithHeaders(hiUrl)
-    if (!r.ok && hiUrl !== rawUrl) {
-      r = await fetchWithHeaders(rawUrl)
-    }
-    if (!r.ok) return res.status(502).send('Upstream fetch failed')
+    const best = await fetchBestImage(url)
+    if (!best) return res.status(502).send('Upstream fetch failed')
+    const r = best.response
 
     const ct = r.headers.get('content-type') || 'application/octet-stream'
     const ext = ct.includes('png')
@@ -868,13 +1023,9 @@ app.post('/api/zip', async (req, res) => {
   let idx = 1
   for (const u of urls) {
     try {
-      const rawUrl = normalizeUrl(u)
-      const hiUrl = toHiRes(rawUrl)
-      let r = await fetchWithHeaders(hiUrl)
-      if (!r.ok && hiUrl !== rawUrl) {
-        r = await fetchWithHeaders(rawUrl)
-      }
-      if (!r.ok) continue
+      const best = await fetchBestImage(u)
+      if (!best) continue
+      const r = best.response
 
       const ct = r.headers.get('content-type') || ''
       const ext = ct.includes('png')
@@ -920,13 +1071,9 @@ app.post('/api/zip-webp', async (req, res) => {
   let idx = 1
   for (const u of urls) {
     try {
-      const rawUrl = normalizeUrl(u)
-      const hiUrl = toHiRes(rawUrl)
-      let r = await fetchWithHeaders(hiUrl)
-      if (!r.ok && hiUrl !== rawUrl) {
-        r = await fetchWithHeaders(rawUrl)
-      }
-      if (!r.ok) continue
+      const best = await fetchBestImage(u)
+      if (!best) continue
+      const r = best.response
 
       const buf = Buffer.from(await r.arrayBuffer())
       const webp = await sharp(buf)
@@ -959,12 +1106,10 @@ app.get('/api/preview', async (req, res) => {
     }
     let r = await fetchWithHeaders(previewUrl)
     if (!r.ok) {
-      const hiUrl = toHiRes(previewUrl)
-      if (hiUrl !== previewUrl) {
-        r = await fetchWithHeaders(hiUrl)
-      }
+      const best = await fetchBestImage(previewUrl)
+      if (!best) return res.status(502).send('Upstream fetch failed')
+      r = best.response
     }
-    if (!r.ok) return res.status(502).send('Upstream fetch failed')
     const ct = r.headers.get('content-type') || 'application/octet-stream'
     res.setHeader('Content-Type', ct)
     const buf = Buffer.from(await r.arrayBuffer())

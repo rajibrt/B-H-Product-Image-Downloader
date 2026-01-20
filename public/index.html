@@ -342,7 +342,7 @@
       function selectedUrls() {
         return items
           .filter((x) => x.selected)
-          .map((x) => x.rawUrl || x.hiUrl)
+          .map((x) => x.hiUrl || x.rawUrl)
       }
       function updateControls() {
         const total = items.length
@@ -379,11 +379,11 @@
                 Select
               </label>
               <button data-url="${encodeURIComponent(
-                it.rawUrl || it.hiUrl
+                it.hiUrl || it.rawUrl
               )}">Download</button>
-              <a href="${it.hiUrl}" target="_blank" rel="noreferrer">Open</a>
+              <a href="${it.hiUrl || it.rawUrl}" target="_blank" rel="noreferrer">Open</a>
             </div>
-            <div class="muted">${it.hiUrl}</div>
+            <div class="muted">${it.hiUrl || it.rawUrl}</div>
           `
           const img = card.querySelector('img')
           img.addEventListener('error', () => {
@@ -438,6 +438,10 @@
         )
         u = u.replace(
           /\/images\/multiple_images\/images\d+x\d+\//i,
+          '/images/multiple_images/images2000x2000/'
+        )
+        u = u.replace(
+          /\/images\/multiple_images\/(?!images\d+x\d+\/)/i,
           '/images/multiple_images/images2000x2000/'
         )
         u = u.replace(/\/images\/smallimages\//i, '/images/images2000x2000/')
@@ -560,7 +564,7 @@
           }
 
           items = (data.items || []).map((x) => ({ ...x, selected: true }))
-          if (data.productName && !$('name').value.trim()) {
+          if (data.productName) {
             $('name').value = data.productName
           }
           setStatus(items.length ? 'Done' : 'No images found')
@@ -603,14 +607,14 @@
 
       downloadAll.addEventListener('click', async () => {
         await downloadZip(
-          items.map((x) => x.rawUrl || x.hiUrl),
+          items.map((x) => x.hiUrl || x.rawUrl),
           '/api/zip'
         )
       })
 
       downloadAllWebp.addEventListener('click', async () => {
         await downloadZip(
-          items.map((x) => x.rawUrl || x.hiUrl),
+          items.map((x) => x.hiUrl || x.rawUrl),
           '/api/zip-webp'
         )
       })
